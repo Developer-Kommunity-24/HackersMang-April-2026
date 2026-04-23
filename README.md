@@ -115,14 +115,64 @@ python monitor/vm_connector.py
 | No public IPs on NICs | Set **Public IP** to `None` when creating VM |
 | No Premium_LRS disks | Set **OS disk type** to `Standard HDD (Standard_LRS)` |
 
+## 🚀 Stage 2 — VM Health Monitor with Auto-Healing
+
+Continuously polls the target VM every 30 seconds. If it enters an unhealthy state (`stopped`, `deallocated`, `stopping`), it automatically triggers `begin_start()` to recover it.
+
+### What it does
+
+- Infinite polling loop with configurable interval
+- Color-coded live health status in the terminal
+- Detects `stopped` / `deallocated` / `stopping` states
+- Triggers `begin_start()` with a 120s timeout — non-blocking, picks up on next poll if Azure is slow
+- Tracks total heals performed per session
+
+### Run Stage 2
+
+```bash
+python monitor/vm_monitor.py
+```
+
+### Simulate a failure (fast demo — no deallocation)
+
+```bash
+az vm stop -g <resource-group> -n <vm-name> --skip-shutdown
+```
+
+### Expected Output
+
+```
+👁️  Starting monitor for VM: autoheal-test-vm
+   Polling every 30s | Unhealthy states: {'stopped', 'deallocated', 'stopping', 'unknown'}
+
+21:00:25  ✅ autoheal-test-vm → running
+21:00:58  ❌ autoheal-test-vm → stopped
+
+🚨 VM is [stopped] — triggering auto-heal...
+⏳ Waiting for VM to start (timeout: 120s)...
+✅ VM successfully healed and is now starting up!
+
+   Total heals performed: 1
+21:01:30  ✅ autoheal-test-vm → running
+```
+
+### Key Learnings
+
+| Concept | Detail |
+|---|---|
+| `begin_start()` | Returns an `LROPoller` — Azure long-running operation |
+| `poller.result(timeout=120)` | Blocks max 120s, then lets next poll verify state |
+| `--skip-shutdown` | Stops VM without deallocating — hardware kept, faster recovery |
+| Portal "Stop" button | Always deallocates — use CLI for demos |
+
 ---
 
-## 🗺️ Workshop Stages
+
 
 | Stage | Description | Status |
 |-------|-------------|--------|
 | **Stage 1** | Connect to Azure & read VM power state | ✅ Done |
-| **Stage 2** | Monitoring loop — detect VM failures | 🔜 Coming |
+| **Stage 2** | Monitoring loop — detect VM failures + auto-heal | ✅ Done |
 | **Stage 3** | Auto-remediation — restart / heal the VM | 🔜 Coming |
 
 ---

@@ -14,9 +14,16 @@ Local App (Python)
     │                                   │
     └── Azure SDK (Python) ────────► ComputeManagementClient
                                         │
-                                 List / Monitor VM Power State
+                            ┌───────────┴───────────┐
+                     List all VMs              Poll every 30s
+                            │                       │
+                     Parallel health          Detect failures
+                       checks                      │
+                            └───────────┬───────────┘
                                         │
-                                 Trigger Recovery Actions
+                               begin_start() in
+                              background threads
+                              (non-blocking heal)
 ```
 
 ---
@@ -27,6 +34,8 @@ Local App (Python)
 HackersMang-April-2026/
 ├── monitor/
 │   ├── vm_connector.py     # Stage 1 — Connect & read VM state
+│   ├── vm_monitor.py       # Stage 2 — Single VM health monitor + auto-heal
+│   ├── fleet_monitor.py    # Stage 3 — Multi-VM fleet monitor (parallel)
 │   ├── requirements.txt    # Python dependencies
 │   └── .env                # Azure config (not committed)
 └── README.md
@@ -167,13 +176,78 @@ az vm stop -g <resource-group> -n <vm-name> --skip-shutdown
 
 ---
 
+## 🚀 Stage 3 — Multi-VM Fleet Monitor (Parallel Self-Healing)
 
+Upgrades from single-VM monitoring to watching the **entire resource group fleet**. Discovers all VMs automatically and monitors + heals them in parallel using background threads.
+
+### What it does
+
+- Auto-discovers all VMs in the resource group at startup
+- Checks health of all VMs **in parallel** (`ThreadPoolExecutor`)
+- Fires `begin_start()` heals in **background daemon threads** — polling loop never blocks
+- Renders a live fleet status table every 30 seconds
+- Tracks cumulative heal count across the session
+
+### Run Stage 3
+
+```bash
+python monitor/fleet_monitor.py
+```
+
+### Simulate multi-VM failure (the wow moment)
+
+```bash
+# Two terminals at once — take down the whole fleet!
+az vm stop -g <resource-group> -n autoheal-test-vm --skip-shutdown
+az vm stop -g <resource-group> -n Dynatrace123 --skip-shutdown
+```
+
+### Expected Output
+
+```
+🔍 Discovering VMs in resource group: rg-cp-darshan-dinesh-bhandary
+Found 2 VM(s): Dynatrace123, autoheal-test-vm
+
+ 🖥️  Fleet Status  [21:27:58]  |  Heals: 5
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ VM Name          ┃ Power State ┃ Health ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━┩
+│ Dynatrace123     │ stopped     │   ❌   │
+│ autoheal-test-vm │ stopped     │   ❌   │
+└──────────────────┴─────────────┴────────┘
+⚡ Auto-healed 2 VM(s) this cycle
+
+✅ Dynatrace123 healed successfully
+✅ autoheal-test-vm healed successfully
+
+ 🖥️  Fleet Status  [21:28:28]  |  Heals: 5
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ VM Name          ┃ Power State ┃ Health ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━┩
+│ Dynatrace123     │ running     │   ✅   │
+│ autoheal-test-vm │ running     │   ✅   │
+└──────────────────┴─────────────┴────────┘
+```
+
+### Key Learnings
+
+| Concept | Detail |
+|---|---|
+| `virtual_machines.list()` | Auto-discovers all VMs — no hardcoded names |
+| `ThreadPoolExecutor` | Parallel health checks across all VMs simultaneously |
+| `daemon=True` threads | Heals run in background — poll loop never blocked |
+| Non-blocking design | Polling stays on schedule regardless of Azure LRO speed |
+
+---
+
+## 🗺️ Workshop Stages
 
 | Stage | Description | Status |
 |-------|-------------|--------|
+|-------|-------------|--------|
 | **Stage 1** | Connect to Azure & read VM power state | ✅ Done |
 | **Stage 2** | Monitoring loop — detect VM failures + auto-heal | ✅ Done |
-| **Stage 3** | Auto-remediation — restart / heal the VM | 🔜 Coming |
+| **Stage 3** | Multi-VM fleet monitor — parallel self-healing | ✅ Done |
 
 ---
 

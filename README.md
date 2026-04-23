@@ -122,7 +122,7 @@ python monitor/vm_connector.py
 | Stage | Description | Status |
 |-------|-------------|--------|
 | **Stage 1** | Connect to Azure & read VM power state | ✅ Done |
-| **Stage 2** | Monitoring loop — detect VM failures | 🔜 Coming |
+| **Stage 2** | Monitoring loop — detect VM failures + auto-heal | ✅ Done |
 | **Stage 3** | Auto-remediation — restart / heal the VM | 🔜 Coming |
 
 ---

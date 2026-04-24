@@ -3,3 +3,4 @@ azure-mgmt-compute==33.0.0
 azure-mgmt-resource==23.2.0
 python-dotenv==1.0.1
 rich==13.9.4
+openai==1.75.0

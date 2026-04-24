@@ -21,9 +21,16 @@ Local App (Python)
                        checks                      │
                             └───────────┬───────────┘
                                         │
+                               🤖 GitHub Models
+                               (gpt-4o via OpenAI SDK)
+                                        │
+                            ┌───────────┴───────────┐
+                       AI Diagnose              AI Incident
+                        failure                  Report
+                            └───────────┬───────────┘
+                                        │
                                begin_start() in
                               background threads
-                              (non-blocking heal)
 ```
 
 ---
@@ -36,6 +43,7 @@ HackersMang-April-2026/
 │   ├── vm_connector.py     # Stage 1 — Connect & read VM state
 │   ├── vm_monitor.py       # Stage 2 — Single VM health monitor + auto-heal
 │   ├── fleet_monitor.py    # Stage 3 — Multi-VM fleet monitor (parallel)
+│   ├── ai_healer.py        # Stage 4 — AI-powered diagnosis + incident reports
 │   ├── requirements.txt    # Python dependencies
 │   └── .env                # Azure config (not committed)
 └── README.md
@@ -92,6 +100,10 @@ Create a `monitor/.env` file:
 AZURE_SUBSCRIPTION_ID=<your-subscription-id>
 AZURE_RESOURCE_GROUP=<your-resource-group>
 AZURE_VM_NAME=<your-vm-name>
+
+# Stage 4 only
+GITHUB_TOKEN=<your-github-pat>
+GITHUB_MODEL=gpt-4o
 ```
 
 **5. Run Stage 1**
@@ -240,14 +252,87 @@ Found 2 VM(s): Dynatrace123, autoheal-test-vm
 
 ---
 
+## 🚀 Stage 4 — AI-Powered Diagnosis & Incident Reports
+
+Upgrades the fleet monitor with **gpt-4o intelligence** via GitHub Models. Instead of blindly restarting VMs, the system now diagnoses failures, recommends actions, and writes incident reports automatically.
+
+### What it does
+
+- Calls `gpt-4o` via GitHub Models (OpenAI-compatible, free with GitHub PAT)
+- **AI diagnoses** the failure based on VM name, state, and failure history
+- **AI recommends** the action: `start`, `restart`, or `escalate` (if too many failures)
+- **Executes** the recommended action automatically
+- **AI writes** a natural language incident report after each heal
+- Tracks per-VM failure history across the session
+
+### Run Stage 4
+
+```bash
+python monitor/ai_healer.py
+```
+
+### Get a GitHub PAT (free, no special scopes needed)
+
+1. Go to [github.com/settings/tokens](https://github.com/settings/tokens)
+2. Click **Generate new token (classic)**
+3. No scopes needed — just create and copy it
+4. Add to `monitor/.env` as `GITHUB_TOKEN=ghp_xxxx`
+
+### Expected Output
+
+```
+🔌 Connecting to Azure...
+✅ Azure connected!
+🤖 Initializing AI (gpt-4o via GitHub Models)...
+✅ AI ready!
+
+🖥️  AI Fleet Monitor  [14:12:23]  |  Heals: 0
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┓
+┃ VM Name          ┃ Power State ┃ Health ┃ Failures ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━┩
+│ autoheal-test-vm │ stopped     │   ❌   │    -     │
+└──────────────────┴─────────────┴────────┴──────────┘
+
+🚨 FAILURE DETECTED: autoheal-test-vm → stopped
+🤖 Asking AI to diagnose...
+
+╭─────────────────── 🧠 AI Analysis ───────────────────╮
+│ Diagnosis: VM stopped likely due to OS instability.  │
+│ Action:    start                                     │
+│ Reason:    First failure — safe to auto-recover.     │
+╰──────────────────────────────────────────────────────╯
+
+⏳ Executing [start] on autoheal-test-vm...
+✅ autoheal-test-vm healed in 34s
+📝 Generating AI incident report...
+
+╭──────────────────── 📋 Incident Report ──────────────╮
+│ At 14:12 UTC, autoheal-test-vm entered a stopped     │
+│ state. Automated recovery via begin_start() was      │
+│ triggered and completed in ~34 seconds. Recommend    │
+│ investigating OS crash logs to prevent recurrence.   │
+╰──────────────────────────────────────────────────────╯
+```
+
+### Key Learnings
+
+| Concept | Detail |
+|---|---|
+| GitHub Models | Free `gpt-4o` inference using your GitHub PAT |
+| OpenAI SDK + `base_url` | Point any OpenAI-compatible client at GitHub Models |
+| AI escalation logic | After 3+ failures, AI recommends human escalation |
+| Failure history context | AI gets richer diagnosis with each subsequent failure |
+
+---
+
 ## 🗺️ Workshop Stages
 
 | Stage | Description | Status |
 |-------|-------------|--------|
-|-------|-------------|--------|
 | **Stage 1** | Connect to Azure & read VM power state | ✅ Done |
 | **Stage 2** | Monitoring loop — detect VM failures + auto-heal | ✅ Done |
 | **Stage 3** | Multi-VM fleet monitor — parallel self-healing | ✅ Done |
+| **Stage 4** | AI-powered diagnosis + incident reports (GitHub Models) | ✅ Done |
 
 ---
 
